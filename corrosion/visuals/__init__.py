@@ -1,5 +1,5 @@
-from ._visualizer import Visualizer
+from ._visualizer import CorrosionVisualizer
 
 __all__ = [
-    "Visualizer"
+    "CorrosionVisualizer"
 ]

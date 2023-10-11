@@ -12,6 +12,8 @@ import numpy as np
 from numpy import ndarray
 
 from matplotlib import pyplot as plt
+from matplotlib import transforms
+from matplotlib.patches import Ellipse
 import seaborn as sns
 
 from sklearn.model_selection import (
@@ -21,11 +23,12 @@ from sklearn.model_selection import (
 
 import shap
 
-from src.enums import (
+from corrosion.enums import (
     FeatureImportanceType,
-    MetricType
+    MetricType,
+    PlsSpace
 )
-from src.metrics import Metrics
+from corrosion.metrics import Metrics
 
 sns.set()
 
@@ -99,11 +102,17 @@ class CorrosionVisualizer:
     def predictive_ability_plot(
         y_train: ndarray,
         y_train_hat: ndarray,
-        y_validation: ndarray,
-        y_validation_hat: ndarray,
-        y_bt: ndarray,
-        y_bt_hat: ndarray
+        y_validation: Optional[ndarray] = None,
+        y_validation_hat: Optional[ndarray] = None,
+        y_bt: Optional[ndarray] = None,
+        y_bt_hat: Optional[ndarray] = None,
+        x_label: str = "Measured",
+        y_label: str = "Predicted",
+        b_show_plot: bool = True
     ) -> None:
+
+        b_validation_set_exists: bool = y_validation is not None and y_validation_hat is not None
+        b_bt_set_exists: bool = y_bt is not None and y_bt_hat is not None
 
         plt.figure(figsize=(8, 6))
         plt.subplots_adjust(hspace=0.5, wspace=0.7)
@@ -120,40 +129,45 @@ class CorrosionVisualizer:
             linewidths=0.5
         )
 
-        ax.scatter(
-            y_validation,
-            y_validation_hat,
-            c=_COLORS["validation_color"],
-            marker="^",
-            alpha=0.8,
-            edgecolors='black',
-            linewidths=0.5
-        )
-
-        ax.scatter(
-            y_bt,
-            y_bt_hat,
-            facecolor=_COLORS["bt_color"],
-            marker="s",
-            alpha=0.5,
-            edgecolors='black',
-            linewidths=0.5
-        )
-
-        _y_all: ndarray = np.hstack(
-            (
-                y_train.ravel(),
-                y_train_hat.ravel(),
-                y_validation.ravel(),
-                y_validation.ravel(),
-                y_bt.ravel(),
-                y_bt_hat.ravel()
-            )
-        ).ravel()
-
-        lims = [
-            np.min(_y_all), np.max(_y_all)
+        _y_all = [
+            y_train.ravel(),
+            y_train_hat.ravel(),
         ]
+
+        _legend_labels = ['Training Set']
+
+        if b_validation_set_exists:
+            ax.scatter(
+                y_validation,
+                y_validation_hat,
+                c=_COLORS["validation_color"],
+                marker="^",
+                alpha=0.8,
+                edgecolors='black',
+                linewidths=0.5
+            )
+            _y_all.append(y_validation)
+            _y_all.append(y_validation_hat)
+            _legend_labels.append('Validation Set')
+
+        if b_bt_set_exists:
+            ax.scatter(
+                y_bt,
+                y_bt_hat,
+                facecolor=_COLORS["bt_color"],
+                marker="s",
+                alpha=0.5,
+                edgecolors='black',
+                linewidths=0.5
+            )
+            _y_all.append(y_bt)
+            _y_all.append(y_bt_hat)
+            _legend_labels.append('BT Set')
+
+        _y_all_arr: ndarray = np.hstack(_y_all).ravel()
+        _legend_labels.append('1:1 Line')
+
+        lims = [np.min(_y_all_arr) - 0.2, np.max(_y_all_arr) + 0.2]
 
         ax.plot(lims, lims, 'k--', alpha=0.75, zorder=0)
         ax.set_aspect('equal')
@@ -161,34 +175,37 @@ class CorrosionVisualizer:
         ax.set_ylim(lims)
 
         ax.legend(
-            ('Training Set', 'Validation Set', 'BT Set', '1:1 Line'),
+            _legend_labels,
             loc='best'
         )
 
-        ax.set_xlabel("$tR_{Experimental}$")
-        ax.set_ylabel("$tR_{Predicted}$")
+        ax.set_xlabel(x_label)
+        ax.set_ylabel(y_label)
 
-        # Relative Error (%) -Boxplot
-        _re_bt: float = Metrics.get_metric(
-            y_bt,
-            y_bt_hat,
-            MetricType.RE
-        )
+        if b_bt_set_exists:
 
-        ax_box = ax.inset_axes([0.7, 0.05, 0.4, 0.4])
+            # Relative Error (%) -Boxplot
+            _re_bt: float = Metrics.get_metric(
+                y_bt,
+                y_bt_hat,
+                MetricType.RE
+            )
 
-        box = ax_box.boxplot(_re_bt, labels=[''], showfliers=False, patch_artist=True, widths=0.1, )
-        box['boxes'][0].set(color='black', linewidth=1, facecolor=_COLORS["bt_color"], alpha=0.8)
+            ax_box = ax.inset_axes((0.7, 0.05, 0.4, 0.4))
 
-        ax_box.spines["top"].set_visible(False)
-        ax_box.spines["right"].set_visible(False)
-        ax_box.spines["bottom"].set_visible(False)
-        ax_box.spines['left'].set_position(('axes', 0.3))
+            box = ax_box.boxplot(_re_bt, labels=[''], showfliers=False, patch_artist=True, widths=0.1, )
+            box['boxes'][0].set(color='black', linewidth=1, facecolor=_COLORS["bt_color"], alpha=0.8)
 
-        ax_box.set_facecolor('none')
-        ax_box.set_ylabel("Relative Error (%)", fontsize=14)
+            ax_box.spines["top"].set_visible(False)
+            ax_box.spines["right"].set_visible(False)
+            ax_box.spines["bottom"].set_visible(False)
+            ax_box.spines['left'].set_position(('axes', 0.3))
 
-        plt.show()
+            ax_box.set_facecolor('none')
+            ax_box.set_ylabel("Relative Error (%)", fontsize=14)
+
+        if b_show_plot:
+            plt.show()
 
     @staticmethod
     def residual_plot(
@@ -599,3 +616,159 @@ class CorrosionVisualizer:
         plt.ylabel("Regression coefficients")
 
         plt.show()
+
+    @staticmethod
+    def percentage_of_explained_variance_plot(
+        explained_variance_df: DataFrame,
+        n_components: int,
+        b_show_plot: bool = True
+    ):
+
+        plt.figure(figsize=(8, 6))
+
+        plt.plot(
+            explained_variance_df["n(PCs)"],
+            explained_variance_df["%Explained Variance"],
+            marker='o',
+            linestyle='-'
+        )
+        plt.xlabel('Number of PCs')
+        plt.ylabel('%Explained Variance')
+
+        # Add a vertical dashed red line at the optimal number of components
+        plt.axvline(x=n_components, color='red', linestyle='--', label=f'Optimal PCs: {n_components}')
+        plt.legend()
+
+        plt.xticks(explained_variance_df["n(PCs)"])
+
+        # Add grid lines to the plot
+        plt.grid(True)
+
+        if b_show_plot:
+            plt.show()
+
+    @staticmethod
+    def mse_plot(
+        feature_labels: ndarray,
+        mses: ndarray,
+        b_show_plot: bool = True
+    ):
+
+        plt.figure(figsize=(8, 6))
+
+        plt.plot(
+            feature_labels,
+            mses,
+            marker='o',
+            linestyle='-'
+        )
+        plt.ylabel('MSE / -')
+
+        plt.xticks(feature_labels, rotation=90)
+
+        # Add grid lines to the plot
+        plt.grid(True)
+
+        if b_show_plot:
+            plt.show()
+
+    @staticmethod
+    def __confidence_ellipse(x, y, ax, n_std=3.0, facecolor='none', **kwargs):
+
+        """
+
+        Create a plot of the covariance confidence ellipse of *x* and *y*.
+
+        Parameters
+        ----------
+        x, y : array-like, shape (n, )
+            Input data.
+        ax : matplotlib.axes.Axes
+            The axes object to draw the ellipse into.
+        n_std : float
+            The number of standard deviations to determine the ellipse's radiuses.
+        **kwargs
+            Forwarded to `~matplotlib.patches.Ellipse`
+        Returns
+        -------
+        matplotlib.patches.Ellipse
+
+        """
+        if x.size != y.size:
+            raise ValueError("x and y must be the same size")
+
+        covariance = np.cov(x, y)
+        pearson = covariance[0, 1] / np.sqrt(covariance[0, 0] * covariance[1, 1])
+        # Using a special case to obtain the eigenvalues of this two-dimensional dataset.
+        ell_radius_x = np.sqrt(1 + pearson)
+        ell_radius_y = np.sqrt(1 - pearson)
+        ellipse = Ellipse(
+            (0, 0),
+            width=ell_radius_x * 2,
+            height=ell_radius_y * 2,
+            facecolor=facecolor,
+            **kwargs
+        )
+
+        # Calculating the standard deviation of x from the square root of the variance and multiplying
+        # with the given number of standard deviations.
+        scale_x = np.sqrt(covariance[0, 0]) * n_std
+        mean_x = np.mean(x)
+
+        # Calculating the standard deviation of y ...
+        scale_y = np.sqrt(covariance[1, 1]) * n_std
+        mean_y = np.mean(y)
+
+        transf = transforms.Affine2D() \
+            .rotate_deg(45) \
+            .scale(scale_x, scale_y) \
+            .translate(mean_x, mean_y)
+
+        ellipse.set_transform(transf + ax.transData)
+        return ax.add_patch(ellipse)
+
+    @staticmethod
+    def score_plot(
+        scores: ndarray,
+        space: PlsSpace = PlsSpace.X,
+        filepath: Optional[str] = None,
+        save: bool = False,
+        x_label: str = "1",
+        y_label: str = "2",
+        **kwargs
+    ):
+
+        fig, ax = plt.subplots(**kwargs)
+
+        ax.scatter(scores[:, 0], scores[:, 1])
+
+        # ax.set_aspect('equal')
+
+        ax.set(
+            title=str(space.name) + '-space score plot',
+            xlabel=f't[{x_label}]' if space == PlsSpace.X else f"u[{x_label}]",
+            ylabel=f't[{y_label}]' if space == PlsSpace.X else f"u[{y_label}]"
+        )
+
+        CorrosionVisualizer.__confidence_ellipse(
+            x=scores[:, 0],
+            y=scores[:, 1],
+            ax=ax,
+            n_std=2.5,
+            edgecolor='red',
+            facecolor='none',
+            linestyle="dashed"
+        )
+        CorrosionVisualizer.__confidence_ellipse(
+            x=scores[:, 0],
+            y=scores[:, 1],
+            ax=ax,
+            n_std=3.0,
+            edgecolor='red',
+            facecolor='none'
+        )
+
+        if save:
+            fig.save(filepath)
+
+        return fig, ax
