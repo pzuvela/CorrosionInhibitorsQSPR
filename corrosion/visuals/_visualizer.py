@@ -313,19 +313,28 @@ class CorrosionVisualizer:
 
     @staticmethod
     def applicability_domain_plot(
+        hat_star: float,
         hat_train: ndarray,
-        hat_validation: ndarray,
-        hat_bt: ndarray,
         res_scaled_train: ndarray,
-        res_scaled_validation: ndarray,
-        res_scaled_bt: ndarray,
-        hat_star: float
+        hat_validation: Optional[ndarray] = None,
+        res_scaled_validation: Optional[ndarray] = None,
+        hat_bt: Optional[ndarray] = None,
+        res_scaled_bt: Optional[ndarray] = None,
+        b_show_plot: bool = True
     ) -> None:
-        
+
+        b_has_validation: bool = hat_validation is not None and res_scaled_validation is not None
+        b_has_bt: bool = hat_bt is not None and res_scaled_bt is not None
+
         plt.figure(figsize=(8, 6))
         plt.subplots_adjust(hspace=0.5, wspace=0.7)
 
         ax = plt.subplot()
+
+        res_scaled = res_scaled_train.ravel()
+        hat = hat_train.ravel()
+
+        legend_labels = ['Train']
 
         ax.scatter(
             hat_train.ravel(),
@@ -337,25 +346,37 @@ class CorrosionVisualizer:
             linewidths=0.5
         )
 
-        ax.scatter(
-            hat_validation.ravel(),
-            res_scaled_validation.ravel(),
-            c=_COLORS["validation_color"],
-            marker="^",
-            alpha=0.5,
-            edgecolors='black',
-            linewidths=0.6
-        )
+        if b_has_validation:
 
-        ax.scatter(
-            hat_bt.ravel(),
-            res_scaled_bt.ravel(),
-            facecolor=_COLORS["bt_color"],
-            marker="s",
-            alpha=0.4,
-            edgecolors='black',
-            linewidths=0.5
-        )
+            res_scaled = np.hstack((res_scaled.ravel(), res_scaled_validation.ravel())).ravel()
+            hat = np.hstack((hat.ravel(), hat_validation.ravel())).ravel()
+            legend_labels.append('Validation')
+
+            ax.scatter(
+                hat_validation.ravel(),
+                res_scaled_validation.ravel(),
+                c=_COLORS["validation_color"],
+                marker="^",
+                alpha=0.5,
+                edgecolors='black',
+                linewidths=0.6
+            )
+
+        if b_has_bt:
+
+            res_scaled = np.hstack((res_scaled.ravel(), res_scaled_bt.ravel())).ravel()
+            hat = np.hstack((hat.ravel(), hat_bt.ravel())).ravel()
+            legend_labels.append('Blind Test')
+
+            ax.scatter(
+                hat_bt.ravel(),
+                res_scaled_bt.ravel(),
+                facecolor=_COLORS["bt_color"],
+                marker="s",
+                alpha=0.4,
+                edgecolors='black',
+                linewidths=0.5
+            )
 
         # draw warning limits
         ax.axhline(3, ls=":", color="tomato", lw=1.5)
@@ -363,18 +384,18 @@ class CorrosionVisualizer:
         ax.axvline(hat_star, ls=":", color="tomato", lw=1.5)
 
         h_s = f'h* = {hat_star:.2f}'  # h*
-        ax.text(hat_star - 0.025, -2.5, h_s, ha='left', va='top', fontsize=12)
+        ax.text(hat_star - 0.25, -1.0, h_s, ha='left', va='top', fontsize=12)
 
         for _i, (_res, _hat) in enumerate(
             zip(
-                np.hstack((res_scaled_train.ravel(), res_scaled_validation.ravel(), res_scaled_bt.ravel())).ravel(),
-                np.hstack((hat_train.ravel(), hat_validation.ravel(), hat_bt.ravel())).ravel(),
+                res_scaled,
+                hat
             )
         ):
             if -3 >= _res >= 3 or _hat >= hat_star:
                 ax.annotate(f'{_i}', (_hat, _res), fontsize=12)
 
-        ax.legend(('Train', 'Validation', 'Test'), loc=(0.7, 0.8))
+        ax.legend(legend_labels, loc=(0.7, 0.8))
 
         ax.set_ylim(-6, 6)
         ax.yaxis.set_ticks(np.arange(-6, 7, 1))
@@ -382,7 +403,8 @@ class CorrosionVisualizer:
         ax.set_xlabel("Leverage")
         ax.set_ylabel("Standardized Residuals")
 
-        plt.show()
+        if b_show_plot:
+            plt.show()
 
     @staticmethod
     def y_randomization_plot(
@@ -686,7 +708,7 @@ class CorrosionVisualizer:
         ax : matplotlib.axes.Axes
             The axes object to draw the ellipse into.
         n_std : float
-            The number of standard deviations to determine the ellipse's radiuses.
+            The number of standard deviations to determine the ellipse's radii.
         **kwargs
             Forwarded to `~matplotlib.patches.Ellipse`
         Returns
@@ -712,19 +734,20 @@ class CorrosionVisualizer:
 
         # Calculating the standard deviation of x from the square root of the variance and multiplying
         # with the given number of standard deviations.
-        scale_x = np.sqrt(covariance[0, 0]) * n_std
-        mean_x = np.mean(x)
+        scale_x = float(np.sqrt(covariance[0, 0]) * n_std)
+        mean_x = float(np.mean(x))
 
         # Calculating the standard deviation of y ...
         scale_y = np.sqrt(covariance[1, 1]) * n_std
-        mean_y = np.mean(y)
+        mean_y = float(np.mean(y))
 
-        transf = transforms.Affine2D() \
+        transformation = transforms.Affine2D() \
             .rotate_deg(45) \
             .scale(scale_x, scale_y) \
             .translate(mean_x, mean_y)
 
-        ellipse.set_transform(transf + ax.transData)
+        ellipse.set_transform(transformation + ax.transData)
+
         return ax.add_patch(ellipse)
 
     @staticmethod
