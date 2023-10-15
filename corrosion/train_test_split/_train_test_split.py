@@ -6,6 +6,8 @@ from typing import (
 import numpy as np
 from numpy import ndarray
 
+from sklearn.model_selection import train_test_split
+
 from corrosion.enums import TrainTestSplitType
 
 
@@ -19,7 +21,8 @@ class TrainTestSplit:
     ):
 
         _MAPPING: Dict[TrainTestSplitType, Callable] = {
-            TrainTestSplitType.Kenstone: TrainTestSplit.kenstone
+            TrainTestSplitType.Kenstone: TrainTestSplit.kenstone,
+            TrainTestSplitType.Random: train_test_split
         }
 
         return _MAPPING[train_test_split_type](
