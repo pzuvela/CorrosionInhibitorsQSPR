@@ -168,14 +168,14 @@ class CorrosionVisualizer:
         _legend_labels.append('1:1 Line')
 
         lims = [
-            np.min(_y_all_arr) - 0.1 * np.min(_y_all_arr),
-            np.max(_y_all_arr) + 0.025 * np.max(_y_all_arr)
+            np.min(_y_all_arr),
+            np.max(_y_all_arr)
         ]
 
         ax.plot(lims, lims, 'k--', alpha=0.75, zorder=0)
         ax.set_aspect('equal')
-        ax.set_xlim(lims)
-        ax.set_ylim(lims)
+        # ax.set_xlim(lims)
+        # ax.set_ylim(lims)
 
         ax.legend(
             _legend_labels,

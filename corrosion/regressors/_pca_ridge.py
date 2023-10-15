@@ -1,6 +1,7 @@
 from typing import (
     Any,
-    Dict
+    Dict,
+    Optional
 )
 
 from sklearn.base import BaseEstimator
@@ -23,7 +24,8 @@ class PcaRidge(BaseEstimator):
         self.n_components = n_components
         self.alpha = alpha
         self.b_scale_data = b_scale_data
-        self.model = self.__get_model()
+
+        self.__model: Optional[Pipeline] = None
 
     def __get_model(self):
 
@@ -37,11 +39,19 @@ class PcaRidge(BaseEstimator):
 
         return Pipeline(_pipeline_elements)
 
+    def get_params(self, deep=True):
+        return {
+            "n_components": self.n_components,
+            "alpha": self.alpha
+        }
+
     def fit(self, X, y):  # noqa (uppercase X)
-        self.model.fit(X, y)
+        self.__model = self.__get_model()
+        self.__model.fit(X, y)
+        return self
 
     def predict(self, X):  # noqa (uppercase X)
-        return self.model.predict(X)
+        return self.__model.predict(X)
 
 
 def get_pca_ridge_model(
@@ -52,7 +62,9 @@ def get_pca_ridge_model(
     verbose: int = 2,
     n_jobs: int = 1
 ):
-    _pca_ridge: PcaRidge = PcaRidge(b_scale_data=b_scale_data)
+    _pca_ridge: PcaRidge = PcaRidge(
+        b_scale_data=b_scale_data
+    )
 
     _model: GridSearchCV = GridSearchCV(
         estimator=_pca_ridge,
