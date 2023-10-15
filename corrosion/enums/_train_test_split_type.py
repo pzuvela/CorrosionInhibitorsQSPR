@@ -1,5 +1,6 @@
 from enum import Enum
 
-class TrainTestSplitType:
+
+class TrainTestSplitType(Enum):
     Kenstone = 1
     Random = 2
