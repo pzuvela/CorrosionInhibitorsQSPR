@@ -53,7 +53,7 @@ class TestDeepChemForCorrosionProject:
         )
 
         # Create featurizer
-        featurizer = dc.feat.CircularFingerprint(size=32)
+        featurizer = dc.feat.CircularFingerprint(size=16)
 
         # Create fingerprints from SMILES
         fps = featurizer.featurize(data_gp_df.SMILES)
