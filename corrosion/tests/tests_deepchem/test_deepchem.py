@@ -1,4 +1,3 @@
-
 from typing import (
     Any,
     Dict,
@@ -27,6 +26,8 @@ from corrosion.metrics import Metrics
 from corrosion.regressors import get_pca_ridge_model
 from corrosion.train_test_split import TrainTestSplit
 
+import deepchem as dc
+
 # Constants
 DATASET_PATH: str = get_corrosion_dataset(
     Dataset.Gas
@@ -34,6 +35,7 @@ DATASET_PATH: str = get_corrosion_dataset(
 
 BT_RATIO: float = 0.2
 RANDOM_SEED: int = 12345
+FINGERPRINT_SIZE: int = 32
 
 PARAM_GRID: Dict[str, Any] = {
     "n_components": range(2, 8),
@@ -41,18 +43,35 @@ PARAM_GRID: Dict[str, Any] = {
 }
 
 
-class TestPcaRidge:
+class TestDeepChemForCorrosionProject:
 
-    def test_pca_ridge(self):
+    def test_deepchem(self):
 
-        # Load Data
-        data_df: DataFrame = pd.read_csv(DATASET_PATH)
+        # Load gas phase dataset
+        data_gp_df: DataFrame = pd.read_csv(
+            DATASET_PATH
+        )
 
-        # Get only quinolines
-        data_quinolines_df: DataFrame = data_df[data_df.Name.str.contains("quinoline")].reset_index(drop=True)
+        # Create featurizer
+        featurizer = dc.feat.CircularFingerprint(size=32)
+
+        # Create fingerprints from SMILES
+        fps = featurizer.featurize(data_gp_df.SMILES)
+
+        # Add the fps to the dataset
+        data_gp_df: DataFrame = pd.concat(
+            (
+                data_gp_df,
+                pd.DataFrame(
+                    fps,
+                    columns=[f"FP_{_i + 1}" for _i in range(fps.shape[1])]  # 1 - n(features)
+                )
+            ),
+            axis=1
+        )
 
         # Get X
-        _x_df: DataFrame = data_quinolines_df.iloc[:, 3:].drop(
+        _x_df: DataFrame = data_gp_df.iloc[:, 3:].drop(
             columns=["PAE", "EXP(PAE)", "Inhibitor Efficiency", "NEW Inhibitor Efficiency"],
             errors="ignore"
         )
@@ -60,7 +79,7 @@ class TestPcaRidge:
         _x_labels: List[str] = list(_x_df.columns)
 
         # Get Y
-        _y_theoretical: ndarray = data_quinolines_df["PAE"]
+        _y_theoretical: ndarray = data_gp_df["PAE"]
 
         # Split data
         _x_train, _x_bt, _y_theoretical_train, _y_theoretical_bt = TrainTestSplit.split(
